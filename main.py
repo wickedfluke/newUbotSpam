@@ -3,24 +3,63 @@
 import asyncio
 from telethon import TelegramClient, events
 from telethon.tl.types import PeerUser, PeerChat, PeerChannel
-API_ID = 13103111#api id
-API_HASH = "a083756841c8b5020d13caca5dc0dd4d"#api hash
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest
+import re
+API_ID = #api id
+API_HASH = ""#api hash
 groups = []
 spamEnabled = False
 Time = 1
 Message = None
 
 client = TelegramClient('opentelegramfiles',API_ID,API_HASH)
+
+async def get_all_groups(client):
+    all_dialogs = await client.get_dialogs()
+    return [dialog.id for dialog in all_dialogs if dialog.is_group]
+
 async def doSpam(client, msg):
     try:
-        for group in groups:
+        all_groups = await get_all_groups(client)
+        for group in all_groups:
             try:
-                await client.send_message(group, msg[0], file=msg[1], link_preview=msg[2])
+                await client.forward_message(group, msg)
                 await asyncio.sleep(0.2)
             except:
                 pass
     except:
         pass
+
+
+@client.on(events.NewMessage(outgoing=True, pattern=r"\.mex"))
+async def set_message(event):
+    global Message
+    if event.is_reply:
+        Message = await event.get_reply_message()
+        await event.reply("Messaggio fissato per lo spam")
+    else:
+        await event.reply("Rispondi a un messaggio per fissarlo per lo spam!")
+
+
+@client.on(events.NewMessage(outgoing=True, pattern=r"\.join"))
+async def join_groups(event):
+    if event.is_reply:
+        reply_msg = await event.get_reply_message()
+        links = re.findall(r"(https?://t\.me/joinchat/[^\s]+|@[^\s]+)", reply_msg.text)
+        
+        for link in links:
+            try:
+                if link.startswith("http"):
+                    await client(ImportChatInviteRequest(link.split('/')[-1]))
+                elif link.startswith("@"):
+                    await client(JoinChannelRequest(link[1:]))
+                await event.reply(f"Successfully joined: {link}")
+            except Exception as e:
+                await event.reply(f"Failed to join: {link}\nError: {str(e)}")
+    else:
+        await event.reply("Reply to a message containing group links or @mentions!")
+
 @client.on(events.NewMessage( outgoing=True))
 async def miei_msg(event):
     global groups, Message, spamEnabled, Time
@@ -58,7 +97,7 @@ async def miei_msg(event):
             await event.edit("canale aggiunto per lo spam correttamente!")
     elif event.text == ".remove_this_forspam":
         await event.edit("!rimosso per lo spam correttamente!")
-    elif event.text == ".mex":
+    elif event.text == ".messaggio":
         if event.is_reply:
             new = await event.get_reply_message()
             if new.media != None and type(new.media).__name__ != "MessageMediaWebPage" and type(
