@@ -97,6 +97,12 @@ async def join_groups(event):
     else:
         await event.reply("Rispondi a un messaggio contenente link di gruppo o @mention!")
 
+@client.on(events.NewMessage(outgoing=True, pattern=r"\.help"))
+async def send_help_link(event):
+    help_link = "https://telegra.ph/Comandi-Spam-Userbot--Dev-DebiruDansei-08-23"
+    await event.reply(f"Ecco la lista dei comandi: [Comandi Spam Userbot]({help_link})")
+
+
 # Funzione per gestire i comandi di spam
 @client.on(events.NewMessage(outgoing=True))
 async def handle_commands(event):
