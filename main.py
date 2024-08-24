@@ -60,11 +60,12 @@ async def do_spam(client, msg):
     try:
         all_groups = await get_all_groups(client)
         for group in all_groups:
-            try:
-                await client.forward_messages(group, msg)
-                await asyncio.sleep(0.2)  
-            except Exception as e:
-                print(f"Errore durante l'inoltro al gruppo {group}: {str(e)}")
+            if group not in groups:
+                try:
+                    await client.forward_messages(group, msg)
+                    await asyncio.sleep(0.2)  
+                except Exception as e:
+                    print(f"Errore durante l'inoltro al gruppo {group}: {str(e)}")
     except Exception as e:
         print(f"Errore generale nel ciclo di spam: {str(e)}")
 
@@ -150,17 +151,23 @@ async def handle_commands(event):
             groups.append(event.peer_id.channel_id)
             await event.edit("Canale aggiunto per lo spam correttamente!")
 
-    elif event.text == ".remove_this_forspam":
+    elif event.text == ".remove":
         # Logica per rimuovere il gruppo corrente per lo spam
         try:
-            if isinstance(event.peer_id, PeerChat) or isinstance(event.peer_id, PeerChannel):
+            if isinstance(event.peer_id, PeerChat):
                 if event.peer_id.chat_id in groups:
                     groups.remove(event.peer_id.chat_id)
-                elif event.peer_id.channel_id in groups:
+                    await event.edit("Gruppo rimosso dalla lista di spam correttamente!")
+                else:
+                    await event.edit("Questo gruppo non era nella lista dei gruppi per lo spam.")
+            elif isinstance(event.peer_id, PeerChannel):
+                if event.peer_id.channel_id in groups:
                     groups.remove(event.peer_id.channel_id)
-                await event.edit("Gruppo rimosso dallo spam correttamente!")
+                    await event.edit("Canale rimosso dalla lista di spam correttamente!")
+                else:
+                    await event.edit("Questo canale non era nella lista dei canali per lo spam.")
         except Exception as e:
-            await event.edit(f"Errore durante la rimozione del gruppo per lo spam: {str(e)}")
+            await event.edit(f"Errore durante la rimozione del gruppo o canale per lo spam: {str(e)}")
 
     elif event.text == ".messaggio":
         if event.is_reply:
