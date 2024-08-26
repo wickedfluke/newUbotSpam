@@ -14,6 +14,8 @@ Time = 1
 Message = None
 auto_reply_message = None
 approved_chats = set()
+excluded_groups = set()
+spam_all_groups_mode = True  # Variabile per determinare la modalità di spam
 
 client = TelegramClient('opentelegramfiles', API_ID, API_HASH)
 
@@ -60,12 +62,24 @@ async def do_spam(client, msg):
     try:
         all_groups = await get_all_groups(client)
         for group in all_groups:
-            if group not in groups:
+            if group not in excluded_groups:
                 try:
                     await client.forward_messages(group, msg)
                     await asyncio.sleep(0.2)  
                 except Exception as e:
                     print(f"Errore durante l'inoltro al gruppo {group}: {str(e)}")
+    except Exception as e:
+        print(f"Errore generale nel ciclo di spam: {str(e)}")
+
+# Funzione per gestire lo spam nei gruppi specificati
+async def do_spam_selected_groups(client, msg):
+    try:
+        for group in groups:
+            try:
+                await client.forward_messages(group, msg)
+                await asyncio.sleep(0.2)
+            except Exception as e:
+                print(f"Errore durante l'inoltro al gruppo {group}: {str(e)}")
     except Exception as e:
         print(f"Errore generale nel ciclo di spam: {str(e)}")
 
@@ -103,11 +117,10 @@ async def send_help_link(event):
     help_link = "https://telegra.ph/Comandi-Spam-Userbot--Dev-DebiruDansei-08-23"
     await event.reply(f"Ecco la lista dei comandi: [Comandi Spam Userbot]({help_link})")
 
-
 # Funzione per gestire i comandi di spam
 @client.on(events.NewMessage(outgoing=True))
 async def handle_commands(event):
-    global groups, Message, spamEnabled, Time
+    global groups, Message, spamEnabled, Time, spam_all_groups_mode
     
     if event.text == ".start":
         if not spamEnabled:
@@ -120,7 +133,10 @@ async def handle_commands(event):
 
             try:
                 while spamEnabled:
-                    await asyncio.wait([asyncio.create_task(do_spam(event.client, Message))])
+                    if spam_all_groups_mode:
+                        await asyncio.wait([asyncio.create_task(do_spam(event.client, Message))])
+                    else:
+                        await asyncio.wait([asyncio.create_task(do_spam_selected_groups(event.client, Message))])
                     for i in range(Time * 60):  
                         if spamEnabled:
                             await asyncio.sleep(1)
@@ -152,20 +168,18 @@ async def handle_commands(event):
             await event.edit("Canale aggiunto per lo spam correttamente!")
 
     elif event.text == ".remove":
-        # Logica per rimuovere il gruppo corrente per lo spam
+        global excluded_groups
         try:
             if isinstance(event.peer_id, PeerChat):
-                if event.peer_id.chat_id in groups:
-                    groups.remove(event.peer_id.chat_id)
-                    await event.edit("Gruppo rimosso dalla lista di spam correttamente!")
-                else:
-                    await event.edit("Questo gruppo non era nella lista dei gruppi per lo spam.")
+                chat_id = event.peer_id.chat_id
+                excluded_groups.add(chat_id)  # Aggiunge il gruppo alla lista delle eccezioni
+                await event.edit("Gruppo rimosso dalla lista di spam correttamente!")
             elif isinstance(event.peer_id, PeerChannel):
-                if event.peer_id.channel_id in groups:
-                    groups.remove(event.peer_id.channel_id)
-                    await event.edit("Canale rimosso dalla lista di spam correttamente!")
-                else:
-                    await event.edit("Questo canale non era nella lista dei canali per lo spam.")
+                channel_id = event.peer_id.channel_id
+                excluded_groups.add(channel_id)  # Aggiunge il canale alla lista delle eccezioni
+                await event.edit("Canale rimosso dalla lista di spam correttamente!")
+            else:
+                await event.edit("Questo comando può essere usato solo in gruppi o canali!")
         except Exception as e:
             await event.edit(f"Errore durante la rimozione del gruppo o canale per lo spam: {str(e)}")
 
@@ -191,6 +205,11 @@ async def handle_commands(event):
                     await event.edit("Tempo non valido, inserire un valore tra 1 e 60.")
             except ValueError:
                 await event.edit("Errore: inserire un numero valido.")
+
+    elif event.text == ".mode":
+        spam_all_groups_mode = not spam_all_groups_mode  # Inverte la modalità
+        mode_text = "Spam in tutti i gruppi" if spam_all_groups_mode else "Spam solo nei gruppi selezionati"
+        await event.edit(f"Modalità cambiata: {mode_text}")
 
 client.start()
 client.run_until_disconnected()
